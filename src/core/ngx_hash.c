@@ -383,10 +383,9 @@ static ngx_uint_t ngx_hash_min_prime(ngx_uint_t value) {
     for (size_t i = 0; i < sizeof(primes)/sizeof(*primes); ++i)
     {
         ngx_uint_t prime = primes[i];
-        if (prime >= value)
+        if (prime > value)
         {
-            value = prime;
-            break;
+            return prime;
         }
     }
     return value;
@@ -411,7 +410,6 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
                       hinit->name, hinit->name, hinit->max_size);
         return NGX_ERROR;
     }
-    hinit->max_size = ngx_hash_min_prime(hinit->max_size);
 
     for (n = 0; n < nelts; n++) {
         if (hinit->bucket_size < NGX_HASH_ELT_SIZE(&names[n]) + sizeof(void *))
@@ -430,6 +428,35 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
     }
 
     bucket_size = hinit->bucket_size - sizeof(void *);
+
+    /*
+     * For hash size check primes first, then try others.
+     * There cannot be more than log(max_size) primes to test
+     */
+    for (size = ngx_hash_min_prime(nelts); size <= hinit->max_size; size = ngx_hash_min_prime(nelts)) {
+
+
+        ngx_memzero(test, size * sizeof(u_short));
+
+        for (n = 0; n < nelts; n++) {
+            if (names[n].key.data == NULL) {
+                continue;
+            }
+
+            key = names[n].key_hash % size;
+            test[key] = (u_short) (test[key] + NGX_HASH_ELT_SIZE(&names[n]));
+
+            if (test[key] > (u_short) bucket_size) {
+                goto next_prime;
+            }
+        }
+
+        goto found;
+
+    next_prime:
+
+        continue;
+    }
 
     start = nelts / (bucket_size / (2 * sizeof(void *)));
     start = start ? start : 1;
