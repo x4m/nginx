@@ -433,8 +433,8 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
      * For hash size check primes first, then try others.
      * There cannot be more than log(max_size) primes to test
      */
-    for (size = ngx_hash_min_prime(nelts); size <= hinit->max_size; size = ngx_hash_min_prime(nelts)) {
 
+    for (size = ngx_hash_min_prime(nelts); size <= hinit->max_size; size = ngx_hash_min_prime(size)) {
 
         ngx_memzero(test, size * sizeof(u_short));
 
@@ -457,6 +457,7 @@ ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts)
 
         continue;
     }
+
 
     start = nelts / (bucket_size / (2 * sizeof(void *)));
     start = start ? start : 1;
