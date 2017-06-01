@@ -8,6 +8,8 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <nginx.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 
 static void ngx_show_version_info(void);
@@ -282,6 +284,49 @@ main(int argc, char *const *argv)
     }
 
     cycle = ngx_init_cycle(&init_cycle);
+
+
+        /* Here will be hash tests */
+    {
+    	size_t elementscount = 5000;
+    	ngx_hash_t			hashx;
+    	ngx_hash_key_t             *elements;
+    	    ngx_hash_init_t             hash;
+    	    struct rusage 	start,end;
+    	    ngx_log_stderr(0,"doing tests");
+
+
+    	    elements = ngx_alloc(sizeof(ngx_hash_key_t)*elementscount,log);
+
+    	    	hash.hash = &hashx;
+    	        hash.key = ngx_hash_key;
+    	        hash.max_size = 10000;
+    	        hash.bucket_size = 64;
+    	        hash.name = "test_hash";
+    	        hash.pool = ngx_create_pool(NGX_CYCLE_POOL_SIZE, log);
+    	        hash.temp_pool = NULL;
+
+    	        srand(42);
+    	        for(size_t i=0;i<elementscount;i++){
+    	        	elements[i].key.len = 4;
+    	        	elements[i].key.data = ngx_alloc(4,log);
+
+    	        	((u_char*)elements[i].key.data)[3] = 'a' + (i%16);
+    	        	((u_char*)elements[i].key.data)[1] = 'a' + ((i>>4)%16);
+    	        	((u_char*)elements[i].key.data)[2] = 'a' + ((i>>8)%16);
+    	        	((u_char*)elements[i].key.data)[0] = 'a' + ((i>>16)%16);
+    	        	elements[i].key_hash = ngx_hash_key(elements[i].key.data,4);
+    	        }
+
+    	        ngx_log_stderr(0, "before init");
+    	        getrusage(RUSAGE_SELF,&start);
+    	        ngx_hash_init(&hash, elements , elementscount);
+    	        getrusage(RUSAGE_SELF,&end);
+    	        ngx_log_stderr(0, "after init");
+    	        ngx_log_stderr(0, "time %d",end.ru_utime.tv_usec - start.ru_utime.tv_usec);
+    	        return 0;
+    }
+
     if (cycle == NULL) {
         if (ngx_test_config) {
             ngx_log_stderr(0, "configuration file %s test failed",
@@ -316,6 +361,7 @@ main(int argc, char *const *argv)
 
         return 0;
     }
+
 
     if (ngx_signal) {
         return ngx_signal_process(cycle, ngx_signal);
